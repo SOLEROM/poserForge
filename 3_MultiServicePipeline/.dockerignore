@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+*.pyo
+tests/
+.env
+README.md
+Makefile

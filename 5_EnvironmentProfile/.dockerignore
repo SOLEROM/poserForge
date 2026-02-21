@@ -1,0 +1,8 @@
+.git
+__pycache__
+*.pyc
+*.pyo
+tests/
+Makefile
+README.md
+.env

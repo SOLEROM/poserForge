@@ -1,0 +1,37 @@
+services:
+  app:
+    build: .
+    command: python /app/service.py
+    ports:
+      - "${APP_PORT:-8091}:8080"
+    volumes:
+      - stateful-data:/data
+    networks:
+      - stateful-net
+    environment:
+      - PORT=8080
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  inspector:
+    build: .
+    command: python /app/inspector.py
+    volumes:
+      - stateful-data:/data
+    networks:
+      - stateful-net
+    profiles:
+      - inspect
+
+volumes:
+  stateful-data:
+    name: poserforge-stateful-data
+
+networks:
+  stateful-net:
+    name: poserforge-stateful-net

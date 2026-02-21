@@ -1,0 +1,3 @@
+Observability Sidecar Pattern (Monitoring & Debug Support)
+
+This pattern introduces auxiliary containers that exist solely to observe or debug primary services. Compose defines monitoring, logging, or inspection tools that attach to shared networks or volumes without modifying the application containers themselves. The design demonstrates separation between operational tooling and application logic, allowing debugging and analysis tools to be enabled only when needed. The usage model teaches dynamic enabling of observability components during development or troubleshooting while keeping the production runtime minimal.

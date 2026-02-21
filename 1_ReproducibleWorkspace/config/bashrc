@@ -1,0 +1,47 @@
+# ~/.bashrc — dev container shell configuration
+# Loaded for every interactive bash session inside the container.
+
+# ── Basic settings ─────────────────────────────────────────────────────────────
+export HISTSIZE=10000
+export HISTFILESIZE=20000
+export HISTCONTROL=ignoredups:erasedups
+shopt -s histappend
+shopt -s checkwinsize
+
+# ── Colorized prompt: user@container:path$ ─────────────────────────────────────
+export PS1='\[\e[0;32m\]\u\[\e[0m\]@\[\e[0;36m\]devenv\[\e[0m\]:\[\e[0;34m\]\w\[\e[0m\]\$ '
+
+# ── Color support for ls/grep ──────────────────────────────────────────────────
+if [ -x /usr/bin/dircolors ]; then
+    eval "$(dircolors -b)"
+    alias ls='ls --color=auto'
+    alias grep='grep --color=auto'
+fi
+
+# ── Useful aliases ─────────────────────────────────────────────────────────────
+alias ll='ls -alF'
+alias la='ls -A'
+alias l='ls -CF'
+alias ..='cd ..'
+alias ...='cd ../..'
+
+# ── Project shortcuts ──────────────────────────────────────────────────────────
+alias py='python3'
+alias pip='pip3'
+alias test-py='python3 -m pytest tests/ -v'
+alias test-node='node tests/test_node.js'
+alias build='make build 2>/dev/null || echo "No Makefile target: build"'
+
+# ── Environment info banner ────────────────────────────────────────────────────
+echo ""
+echo "  ┌─────────────────────────────────────────┐"
+echo "  │   poserForge Reproducible Dev Container  │"
+echo "  │                                          │"
+printf "  │   Node  : %-30s│\n" "$(node --version 2>/dev/null)"
+printf "  │   Python: %-30s│\n" "$(python3 --version 2>/dev/null)"
+printf "  │   npm   : %-30s│\n" "v$(npm --version 2>/dev/null)"
+echo "  │                                          │"
+echo "  │   /workspace  ← your source (bind mount) │"
+echo "  │   dist/       ← build artifacts (volume) │"
+echo "  └─────────────────────────────────────────┘"
+echo ""

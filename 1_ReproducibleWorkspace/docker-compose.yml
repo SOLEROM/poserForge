@@ -1,0 +1,121 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# poserForge — Reproducible Development Environment
+#
+# Design intent (from claude.md):
+#   • Single long-lived development container with pinned toolchains
+#   • Source code bind-mounted from host → changes reflected instantly
+#   • Caches & artifacts in named volumes → host filesystem stays clean
+#   • Container behaves as a persistent interactive shell, not a service
+#   • Every developer / CI runner gets the same runtime, same versions
+#
+# Usage:
+#   docker compose up -d          # start in background
+#   docker compose exec devenv bash   # enter the shell
+#   docker compose down           # stop (state preserved in volumes)
+#   docker compose down -v        # stop + wipe named volumes (full reset)
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  devenv:
+    # ── Image ────────────────────────────────────────────────────────────────
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        DEV_UID: ${DEV_UID:-1000}
+        DEV_GID: ${DEV_GID:-1000}
+        DEV_USER: ${DEV_USER:-dev}
+
+    image: poserforge/devenv:${IMAGE_TAG:-latest}
+
+    container_name: poserforge-devenv
+
+    # ── Interactive shell mode ────────────────────────────────────────────────
+    # The container is entered interactively; it must not exit immediately.
+    stdin_open: true   # docker run -i
+    tty: true          # docker run -t
+
+    # ── Working directory inside the container ────────────────────────────────
+    working_dir: /workspace
+
+    # ── Mounts ───────────────────────────────────────────────────────────────
+    volumes:
+      # Bind mount: source code lives on the host, reflected live in container.
+      # Changes made inside or outside the container are immediately visible.
+      - type: bind
+        source: ${SOURCE_DIR:-.}
+        target: /workspace
+        # 'delegated' consistency improves performance on macOS (ignored on Linux)
+        consistency: delegated
+
+      # Named volume: pip download / wheel cache
+      # Survives container rebuilds; avoids re-downloading packages.
+      - type: volume
+        source: pip-cache
+        target: /home/${DEV_USER:-dev}/.cache/pip
+
+      # Named volume: npm cache
+      # Survives container rebuilds; avoids re-downloading packages.
+      - type: volume
+        source: npm-cache
+        target: /home/${DEV_USER:-dev}/.cache/npm
+
+      # Named volume: build artifacts / dist output
+      # Keeps generated files off the host; isolates CI outputs.
+      - type: volume
+        source: build-artifacts
+        target: /workspace/dist
+
+    # ── Environment variables passed into the container ───────────────────────
+    environment:
+      # Expose project name so scripts inside can reference it
+      PROJECT_NAME: ${PROJECT_NAME:-myproject}
+      # Disable pip version check noise
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+      # Node env
+      NODE_ENV: ${NODE_ENV:-development}
+      # Coloured terminal
+      TERM: xterm-256color
+      FORCE_COLOR: "1"
+
+    # ── Resource limits (sensible defaults; override in .env) ─────────────────
+    deploy:
+      resources:
+        limits:
+          cpus: "${CPU_LIMIT:-4}"
+          memory: "${MEM_LIMIT:-4g}"
+
+    # ── Restart policy: do not auto-restart (dev workflow, not a service) ─────
+    restart: "no"
+
+    # ── Health check: verifies core tools are present ─────────────────────────
+    healthcheck:
+      test: ["CMD", "bash", "-c",
+             "node --version && python3 --version && git --version"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+# ── Named volumes ─────────────────────────────────────────────────────────────
+# Declared here so Compose manages their lifecycle.
+# These volumes are NOT removed by `docker compose down` (only by `down -v`).
+volumes:
+  pip-cache:
+    name: poserforge-pip-cache
+    labels:
+      com.poserforge.role: "pip-package-cache"
+      com.poserforge.project: "${PROJECT_NAME:-myproject}"
+
+  npm-cache:
+    name: poserforge-npm-cache
+    labels:
+      com.poserforge.role: "npm-package-cache"
+      com.poserforge.project: "${PROJECT_NAME:-myproject}"
+
+  build-artifacts:
+    name: poserforge-build-artifacts
+    labels:
+      com.poserforge.role: "build-output"
+      com.poserforge.project: "${PROJECT_NAME:-myproject}"

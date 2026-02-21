@@ -1,0 +1,84 @@
+name: poserforge-har
+
+# Hardware-Aware Runtime Pattern
+#
+# Two runtime modes controlled by the SENSOR_SOURCE env var and Compose profiles:
+#
+#   Simulation mode (--profile sim):
+#     Starts the 'simulator' service which writes fake sensor readings to a
+#     shared volume file. The 'sensor' service reads that file.
+#
+#   Hardware mode (no profile, SENSOR_SOURCE=hw):
+#     The 'sensor' service reads raw bytes from /dev/hwsensor, which is
+#     mapped from HW_DEVICE (defaults to /dev/urandom for dev hosts;
+#     replace with /dev/ttyUSB0, /dev/video0, etc. on real targets).
+#
+# All services use restart: unless-stopped to model embedded/boot deployment.
+
+services:
+
+  # ── Simulator ──────────────────────────────────────────────────────────────
+  # Only active in sim profile. Writes periodic JSON sensor readings to the
+  # shared volume so 'sensor' has data without any real hardware.
+  simulator:
+    image: poserforge-har
+    build: .
+    command: python app/simulator.py
+    profiles: ["sim"]
+    restart: unless-stopped
+    volumes:
+      - runtime-data:/data
+    environment:
+      - SAMPLE_INTERVAL=${SAMPLE_INTERVAL:-0.5}
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import os,sys; sys.exit(0 if os.path.exists('/data/sensor.dat') else 1)"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+      start_period: 2s
+
+  # ── Sensor reader ──────────────────────────────────────────────────────────
+  # Always present. In sim mode reads from /data/sensor.dat (written by
+  # simulator). In hw mode reads raw bytes from /dev/hwsensor (device node).
+  # Writes /data/latest.json and appends to /data/history.jsonl.
+  sensor:
+    image: poserforge-har
+    command: python app/sensor.py
+    restart: unless-stopped
+    devices:
+      - ${HW_DEVICE:-/dev/urandom}:/dev/hwsensor
+    environment:
+      - SENSOR_SOURCE=${SENSOR_SOURCE:-sim}
+      - SAMPLE_INTERVAL=${SAMPLE_INTERVAL:-1}
+    volumes:
+      - runtime-data:/data
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import json; json.load(open('/data/latest.json'))"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
+  # ── Metrics dashboard ──────────────────────────────────────────────────────
+  # HTTP API exposing the latest reading and historical stats.
+  # Waits for sensor to write its first reading before starting.
+  metrics:
+    image: poserforge-har
+    command: python app/metrics.py
+    restart: unless-stopped
+    depends_on:
+      sensor:
+        condition: service_healthy
+    ports:
+      - "${METRICS_PORT:-8089}:8080"
+    volumes:
+      - runtime-data:/data:ro
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  runtime-data:
+    name: poserforge-runtime-data

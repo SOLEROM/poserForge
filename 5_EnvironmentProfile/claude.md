@@ -1,0 +1,3 @@
+Environment Profile Pattern (Mode Switching)
+
+This pattern uses Compose profiles to define multiple runtime modes inside a single project definition, such as development, simulation, testing, or production-like execution. Services are grouped logically by role and activated only when their associated profile is selected. The design demonstrates how a single Compose file can describe multiple system topologies without duplication, allowing developers to switch environments by changing startup parameters rather than modifying configuration files. The usage model teaches controlled composition of services, enabling lightweight setups for development and richer stacks for integration or hardware testing.

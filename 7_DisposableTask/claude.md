@@ -1,0 +1,3 @@
+Disposable Task Runner Pattern (Ephemeral Execution)
+
+This pattern defines containers designed to execute a single task and terminate immediately after completion. Compose is used to standardize runtime dependencies, environment variables, and filesystem access without maintaining long-running processes. The design demonstrates how Compose can act as a controlled execution environment for scripts, migrations, maintenance operations, or analysis tools. The usage model focuses on running isolated commands repeatedly with deterministic environments, avoiding dependency drift on the host system and ensuring task reproducibility.

@@ -1,0 +1,48 @@
+name: poserforge-disposable
+
+services:
+  seed:
+    build: .
+    command: python seed.py
+    volumes:
+      - task-data:/data
+    env_file: .env
+
+  migrate:
+    build: .
+    command: python migrate.py
+    volumes:
+      - task-data:/data
+    env_file: .env
+
+  analyze:
+    build: .
+    command: python analyze.py
+    volumes:
+      - task-data:/data
+    env_file: .env
+
+  cleanup:
+    build: .
+    command: python cleanup.py
+    volumes:
+      - task-data:/data
+    env_file: .env
+
+  export:
+    build: .
+    command: python export.py
+    volumes:
+      - task-data:/data
+    env_file: .env
+
+  status:
+    build: .
+    command: python status.py
+    volumes:
+      - task-data:/data
+    env_file: .env
+
+volumes:
+  task-data:
+    name: poserforge-task-data

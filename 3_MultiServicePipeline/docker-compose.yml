@@ -1,0 +1,89 @@
+services:
+
+  # ── Stage 0: Public gateway ─────────────────────────────────────────────────
+  gateway:
+    build: .
+    command: python app/gateway.py
+    ports:
+      - "${GATEWAY_PORT:-8088}:8088"
+    environment:
+      INGEST_URL: "http://ingest:5001"
+      DATA_DIR:   "/data"
+    volumes:
+      - pipeline-data:/data
+    networks:
+      - pipeline-net
+    depends_on:
+      ingest:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8088/health').read()"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  # ── Stage 1: Ingest ──────────────────────────────────────────────────────────
+  ingest:
+    build: .
+    command: python app/ingest.py
+    environment:
+      NORMALIZE_URL: "http://normalize:5002"
+    networks:
+      - pipeline-net
+    depends_on:
+      normalize:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:5001/health').read()"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  # ── Stage 2: Normalize ───────────────────────────────────────────────────────
+  normalize:
+    build: .
+    command: python app/normalize.py
+    environment:
+      ANALYZE_URL: "http://analyze:5003"
+    networks:
+      - pipeline-net
+    depends_on:
+      analyze:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:5002/health').read()"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  # ── Stage 3: Analyze ─────────────────────────────────────────────────────────
+  analyze:
+    build: .
+    command: python app/analyze.py
+    environment:
+      DATA_DIR: "/data"
+    volumes:
+      - pipeline-data:/data
+    networks:
+      - pipeline-net
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:5003/health').read()"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+networks:
+  pipeline-net:
+    name: poserforge-pipeline-net
+
+volumes:
+  pipeline-data:
+    name: poserforge-pipeline-data

@@ -1,0 +1,75 @@
+services:
+
+  # ── Primary application ────────────────────────────────────────────────────
+  app:
+    build: .
+    command: python /app/main.py
+    ports:
+      - "${APP_PORT:-8092}:8080"
+    volumes:
+      - app-logs:/logs          # sidecars read from here
+    networks:
+      - sidecar-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8080/health')\""]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  # ── Observability sidecars (profile: observe) ──────────────────────────────
+  # Attaches to LOG VOLUME only — does not need network access to app.
+  # Demonstrates that sidecars can observe via shared filesystem, not just HTTP.
+  log-watcher:
+    build: .
+    command: python /app/log_watcher.py
+    profiles: [observe]
+    volumes:
+      - app-logs:/logs:ro       # read-only — never modifies app data
+    depends_on:
+      app:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Attaches to NETWORK to poll /metrics endpoint AND to VOLUME to store data.
+  metrics-scraper:
+    build: .
+    command: python /app/metrics_scraper.py
+    profiles: [observe]
+    volumes:
+      - app-logs:/logs          # writes scraped snapshots to metrics.jsonl
+    networks:
+      - sidecar-net
+    environment:
+      - APP_URL=http://app:8080
+      - SCRAPE_INTERVAL=${SCRAPE_INTERVAL:-5}
+    depends_on:
+      app:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Debug sidecar (profile: debug) ────────────────────────────────────────
+  # One-shot: reads log volume AND queries app via network → full report.
+  # Enable only when investigating issues; never runs in production.
+  debugger:
+    build: .
+    command: python /app/debugger.py
+    profiles: [debug]
+    volumes:
+      - app-logs:/logs:ro       # read-only volume inspection
+    networks:
+      - sidecar-net
+    environment:
+      - APP_URL=http://app:8080
+    depends_on:
+      app:
+        condition: service_healthy
+
+volumes:
+  app-logs:
+    name: poserforge-sidecar-logs
+
+networks:
+  sidecar-net:
+    name: poserforge-sidecar-net

@@ -1,0 +1,74 @@
+services:
+
+  # ── Base service — runs in every profile ────────────────────────────────────
+  api:
+    build: .
+    command: python api.py
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+    ports:
+      - "${API_PORT:-8090}:5000"
+    volumes:
+      - profile-data:/data
+    networks:
+      - profile-net
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  # ── Profile: dev — adds a live debug companion ──────────────────────────────
+  devtools:
+    build: .
+    command: python devtools.py
+    profiles: [dev]
+    environment:
+      API_URL: http://api:5000
+      POLL_INTERVAL: "3"
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - profile-net
+    restart: unless-stopped
+
+  # ── Profile: test — one-shot test runner ────────────────────────────────────
+  tester:
+    build: .
+    command: python tester.py
+    profiles: [test]
+    environment:
+      API_URL: http://api:5000
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - profile-net
+    restart: "no"
+
+  # ── Profile: prod — adds a health/metrics monitor ───────────────────────────
+  monitor:
+    build: .
+    command: python monitor.py
+    profiles: [prod]
+    environment:
+      API_URL: http://api:5000
+      POLL_INTERVAL: "5"
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - profile-net
+    restart: unless-stopped
+
+networks:
+  profile-net:
+    name: poserforge-profile-net
+
+volumes:
+  profile-data:
+    name: poserforge-profile-data

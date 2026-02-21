@@ -1,0 +1,82 @@
+services:
+
+  # ─── Long-running daemon ────────────────────────────────────────────────────
+  api:
+    build: .
+    image: posertool:latest
+    container_name: poserforge-api
+    command: python service.py
+    ports:
+      - "${API_PORT:-8080}:8080"
+    volumes:
+      - ./app:/app          # bind-mount for dev hot-reload
+      - workspace:/workspace
+    networks:
+      - toolnet
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+    restart: unless-stopped
+
+  # ─── One-shot tool: submit a job ────────────────────────────────────────────
+  submit:
+    build: .
+    image: posertool:latest
+    command: python submit.py
+    volumes:
+      - ./app:/app
+      - workspace:/workspace
+    networks:
+      - toolnet
+    environment:
+      - API_URL=http://api:8080
+      - JOB_NAME=${JOB_NAME:-demo-job}
+      - JOB_CMD=${JOB_CMD:-echo hello world}
+    depends_on:
+      api:
+        condition: service_healthy
+
+  # ─── One-shot tool: query job status ────────────────────────────────────────
+  query:
+    build: .
+    image: posertool:latest
+    command: python query.py
+    volumes:
+      - ./app:/app
+      - workspace:/workspace
+    networks:
+      - toolnet
+    environment:
+      - API_URL=http://api:8080
+      - JOB_ID=${JOB_ID:-}
+    depends_on:
+      api:
+        condition: service_healthy
+
+  # ─── One-shot tool: report from shared volume ────────────────────────────────
+  report:
+    build: .
+    image: posertool:latest
+    command: python report.py
+    volumes:
+      - ./app:/app
+      - workspace:/workspace
+    networks:
+      - toolnet
+    environment:
+      - API_URL=http://api:8080
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  workspace:
+    name: poserforge-workspace
+
+networks:
+  toolnet:
+    name: poserforge-toolnet

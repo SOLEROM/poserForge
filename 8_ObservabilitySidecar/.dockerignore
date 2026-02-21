@@ -1,0 +1,6 @@
+tests/
+*.md
+Makefile
+.env
+__pycache__/
+*.pyc

@@ -1,0 +1,3 @@
+Stateful Service Pattern (Persistent Application State)
+
+This pattern focuses on managing application state explicitly through named volumes while allowing containers themselves to remain disposable. Compose defines services whose runtime identity is separated from their data storage, ensuring that updates, rebuilds, or crashes do not destroy operational data. The design demonstrates the lifecycle distinction between containers and data, teaching how to stop, recreate, or upgrade services safely while preserving sessions, logs, and internal application memory. The usage model emphasizes repeatable rebuilds, safe experimentation, and predictable recovery.
